@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MotoTracker" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <title>MotoTracker</title>
+</head>
+<body>
+  <div id="app">
+
+    <!-- SPLASH / GITHUB SETUP -->
+    <div id="screen-setup" class="screen active">
+      <div class="setup-bg"></div>
+      <div class="setup-content">
+        <div class="logo-mark">
+          <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 45 L20 15 L30 30 L40 10 L55 45" stroke="#ff3c00" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="30" cy="30" r="4" fill="#ff3c00"/>
+          </svg>
+        </div>
+        <h1 class="app-title">MOTO<span>TRACKER</span></h1>
+        <p class="app-sub">Your ride. Your data. Your edge.</p>
+        <div class="setup-form">
+          <h2>Connect to GitHub</h2>
+          <p class="setup-desc">Your data is stored in your own GitHub repository. Enter your details to get started.</p>
+          <div class="field-group">
+            <label>GitHub Username</label>
+            <input type="text" id="gh-username" placeholder="your-username" autocomplete="off" />
+          </div>
+          <div class="field-group">
+            <label>Repository Name</label>
+            <input type="text" id="gh-repo" placeholder="moto-data" autocomplete="off" />
+          </div>
+          <div class="field-group">
+            <label>Personal Access Token <span class="hint">(repo scope)</span></label>
+            <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx" />
+            <a href="https://github.com/settings/tokens/new?scopes=repo&description=MotoTracker" target="_blank" class="token-link">Generate token →</a>
+          </div>
+          <button class="btn-primary" id="btn-connect">CONNECT &amp; START</button>
+          <button class="btn-ghost" id="btn-demo">TRY DEMO MODE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="screen-main" class="screen">
+      <header class="app-header">
+        <div class="header-logo">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 30 L13 10 L20 20 L27 7 L37 30" stroke="#ff3c00" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>MOTO<b>TRACKER</b></span>
+        </div>
+        <div class="header-actions">
+          <button class="sync-btn" id="btn-sync" title="Sync to GitHub">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0019.49 15"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <nav class="bottom-nav">
+        <button class="nav-btn active" data-tab="profile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>RIDER</span>
+        </button>
+        <button class="nav-btn" data-tab="tracks">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>TRACKS</span>
+        </button>
+        <button class="nav-btn" data-tab="hours">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>HOURS</span>
+        </button>
+        <button class="nav-btn" data-tab="suspension">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          <span>SETUP</span>
+        </button>
+      </nav>
+
+      <main class="tab-content">
+
+        <!-- ===== RIDER PROFILE TAB ===== -->
+        <div id="tab-profile" class="tab active">
+          <div class="tab-header">
+            <h2>RIDER PROFILE</h2>
+            <button class="btn-edit" id="btn-edit-profile">EDIT</button>
+          </div>
+
+          <div class="profile-card">
+            <div class="profile-avatar" id="profile-avatar-display">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="profile-info">
+              <div class="rider-name" id="display-name">YOUR NAME</div>
+              <div class="rider-class" id="display-class">—</div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label">BIKE</div>
+            <div class="bike-grid">
+              <div class="stat-block"><div class="stat-label">MAKE</div><div class="stat-val" id="display-make">—</div></div>
+              <div class="stat-block"><div class="stat-label">MODEL</div><div class="stat-val" id="display-model">—</div></div>
+              <div class="stat-block"><div class="stat-label">YEAR</div><div class="stat-val" id="display-year">—</div></div>
+              <div class="stat-block"><div class="stat-label">ENGINE</div><div class="stat-val" id="display-engine">—</div></div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label">TIRES</div>
+            <div class="bike-grid">
+              <div class="stat-block"><div class="stat-label">FRONT</div><div class="stat-val" id="display-tire-front">—</div></div>
+              <div class="stat-block"><div class="stat-label">REAR</div><div class="stat-val" id="display-tire-rear">—</div></div>
+              <div class="stat-block"><div class="stat-label">F. PRESSURE</div><div class="stat-val" id="display-psi-front">—</div></div>
+              <div class="stat-block"><div class="stat-label">R. PRESSURE</div><div class="stat-val" id="display-psi-rear">—</div></div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label">SETUP NOTES</div>
+            <div class="notes-text" id="display-setup-notes">No notes added yet.</div>
+          </div>
+
+          <div class="section-card injuries-section">
+            <div class="section-label-row">
+              <div class="section-label">INJURIES</div>
+              <button class="btn-add-small" id="btn-add-injury">+ ADD</button>
+            </div>
+            <div id="injuries-list" class="injuries-list">
+              <div class="empty-state-small">No injuries logged.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TRACKS TAB ===== -->
+        <div id="tab-tracks" class="tab">
+          <div class="tab-header">
+            <h2>TRACK LOG</h2>
+            <button class="btn-edit" id="btn-add-session">+ SESSION</button>
+          </div>
+          <div class="calendar-container" id="calendar"></div>
+          <div class="sessions-list" id="sessions-list">
+            <div class="empty-state">No sessions logged yet.<br>Tap <strong>+ SESSION</strong> to add your first ride.</div>
+          </div>
+        </div>
+
+        <!-- ===== HOURS TAB ===== -->
+        <div id="tab-hours" class="tab">
+          <div class="tab-header"><h2>RIDING HOURS</h2></div>
+          <div class="hours-stats">
+            <div class="big-stat-card">
+              <div class="big-stat-num" id="stat-total-hours">0</div>
+              <div class="big-stat-label">TOTAL HOURS</div>
+            </div>
+            <div class="mini-stats-row">
+              <div class="mini-stat"><div class="mini-num" id="stat-week-hours">0</div><div class="mini-label">THIS WEEK</div></div>
+              <div class="mini-stat"><div class="mini-num" id="stat-month-hours">0</div><div class="mini-label">THIS MONTH</div></div>
+              <div class="mini-stat"><div class="mini-num" id="stat-sessions">0</div><div class="mini-label">SESSIONS</div></div>
+            </div>
+          </div>
+          <div class="section-card">
+            <div class="section-label">HOURS BY MONTH</div>
+            <div class="bar-chart" id="hours-chart"></div>
+          </div>
+          <div class="section-card">
+            <div class="section-label">RECENT SESSIONS</div>
+            <div id="recent-sessions-list" class="recent-list"></div>
+          </div>
+        </div>
+
+        <!-- ===== SUSPENSION TAB ===== -->
+        <div id="tab-suspension" class="tab">
+          <div class="tab-header">
+            <h2>SUSPENSION SETUP</h2>
+            <button class="btn-edit" id="btn-save-suspension">SAVE</button>
+          </div>
+          <div class="suspension-preset-row">
+            <label>PRESET / TRACK</label>
+            <div class="preset-controls">
+              <select id="susp-preset-select"></select>
+              <button class="btn-add-small" id="btn-new-preset">+ NEW</button>
+              <button class="btn-danger-small" id="btn-delete-preset">DEL</button>
+            </div>
+          </div>
+
+          <div class="section-card susp-section">
+            <div class="section-label fork-label">⬆ FORKS (FRONT)</div>
+            <div class="susp-grid">
+              <div class="susp-field">
+                <label>Compression (clicks)</label>
+                <div class="click-control">
+                  <button class="click-btn" data-field="fork-comp" data-dir="-1">−</button>
+                  <input type="number" id="fork-comp" min="0" max="30" value="12" />
+                  <button class="click-btn" data-field="fork-comp" data-dir="1">+</button>
+                </div>
+              </div>
+              <div class="susp-field">
+                <label>Rebound (clicks)</label>
+                <div class="click-control">
+                  <button class="click-btn" data-field="fork-reb" data-dir="-1">−</button>
+                  <input type="number" id="fork-reb" min="0" max="30" value="12" />
+                  <button class="click-btn" data-field="fork-reb" data-dir="1">+</button>
+                </div>
+              </div>
+              <div class="susp-field">
+                <label>Spring Rate (N/mm)</label>
+                <input type="text" id="fork-spring" placeholder="e.g. 4.6" class="text-input" />
+              </div>
+              <div class="susp-field">
+                <label>Oil Level (mm)</label>
+                <input type="number" id="fork-oil" placeholder="e.g. 95" class="text-input" />
+              </div>
+              <div class="susp-field wide">
+                <label>Sag (mm)</label>
+                <div class="click-control">
+                  <button class="click-btn" data-field="fork-sag" data-dir="-1">−</button>
+                  <input type="number" id="fork-sag" min="0" max="200" value="100" />
+                  <button class="click-btn" data-field="fork-sag" data-dir="1">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card susp-section">
+            <div class="section-label shock-label">⬇ SHOCK (REAR)</div>
+            <div class="susp-grid">
+              <div class="susp-field">
+                <label>Hi-Speed Comp (clicks)</label>
+                <div class="click-control">
+                  <button class="click-btn" data-field="shock-hicomp" data-dir="-1">−</button>
+                  <input type="number" id="shock-hicomp" min="0" max="20" value="2" />
+                  <button class="click-btn" data-field="shock-hicomp" data-dir="1">+</button>
+                </div>
+              </div>
+              <div class="susp-field">
+                <label>Lo-Speed Comp (clicks)</label>
+                <div class="click-control">
+                  <button class="click-btn" data-field="shock-locomp" data-dir="-1">−</button>
+                  <input type="number" id="shock-locomp" min="0" max="30" value="12" />
+                  <button class="click-btn" data-field="shock-locomp" data-dir="1">+</button>
+                </div>
+              </div>
+              <div class="susp-field">
+                <label>Rebound (clicks)</label>
+                <div class="click-control">
+                  <button class="click-btn" data-field="shock-reb" data-dir="-1">−</button>
+                  <input type="number" id="shock-reb" min="0" max="30" value="12" />
+                  <button class="click-btn" data-field="shock-reb" data-dir="1">+</button>
+                </div>
+              </div>
+              <div class="susp-field">
+                <label>Spring Rate (N/mm)</label>
+                <input type="text" id="shock-spring" placeholder="e.g. 52" class="text-input" />
+              </div>
+              <div class="susp-field wide">
+                <label>Race Sag (mm)</label>
+                <div class="click-control">
+                  <button class="click-btn" data-field="shock-sag" data-dir="-1">−</button>
+                  <input type="number" id="shock-sag" min="0" max="200" value="100" />
+                  <button class="click-btn" data-field="shock-sag" data-dir="1">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label">SETUP NOTES</div>
+            <textarea id="susp-notes" class="notes-input" rows="4" placeholder="Track conditions, feel, what to adjust next time..."></textarea>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+    <!-- ===== MODALS ===== -->
+
+    <!-- Edit Profile Modal -->
+    <div id="modal-profile" class="modal">
+      <div class="modal-box">
+        <div class="modal-header"><h3>EDIT RIDER PROFILE</h3><button class="modal-close" data-modal="modal-profile">✕</button></div>
+        <div class="modal-body">
+          <div class="modal-section">RIDER INFO</div>
+          <div class="field-group"><label>Full Name</label><input type="text" id="edit-name" placeholder="John Smith" /></div>
+          <div class="field-group"><label>Riding Class</label>
+            <select id="edit-class">
+              <option>Amateur</option><option>Beginner</option><option>Intermediate</option>
+              <option>Expert</option><option>Pro</option><option>Vet</option>
+            </select>
+          </div>
+          <div class="modal-section">BIKE</div>
+          <div class="field-row">
+            <div class="field-group"><label>Make</label><input type="text" id="edit-make" placeholder="KTM" /></div>
+            <div class="field-group"><label>Model</label><input type="text" id="edit-model" placeholder="450 SX-F" /></div>
+          </div>
+          <div class="field-row">
+            <div class="field-group"><label>Year</label><input type="number" id="edit-year" placeholder="2024" /></div>
+            <div class="field-group"><label>Engine</label><input type="text" id="edit-engine" placeholder="450cc" /></div>
+          </div>
+          <div class="modal-section">TIRES</div>
+          <div class="field-row">
+            <div class="field-group"><label>Front Tire</label><input type="text" id="edit-tire-front" placeholder="Dunlop MX33" /></div>
+            <div class="field-group"><label>Rear Tire</label><input type="text" id="edit-tire-rear" placeholder="Dunlop MX33" /></div>
+          </div>
+          <div class="field-row">
+            <div class="field-group"><label>Front PSI</label><input type="number" id="edit-psi-front" placeholder="12" step="0.5" /></div>
+            <div class="field-group"><label>Rear PSI</label><input type="number" id="edit-psi-rear" placeholder="12" step="0.5" /></div>
+          </div>
+          <div class="modal-section">SETUP NOTES</div>
+          <div class="field-group"><textarea id="edit-setup-notes" rows="4" placeholder="General bike setup notes, mods, jetting, etc."></textarea></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" id="btn-save-profile">SAVE PROFILE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Injury Modal -->
+    <div id="modal-injury" class="modal">
+      <div class="modal-box">
+        <div class="modal-header"><h3>LOG INJURY</h3><button class="modal-close" data-modal="modal-injury">✕</button></div>
+        <div class="modal-body">
+          <div class="field-group"><label>Injury Description</label><input type="text" id="injury-desc" placeholder="e.g. Sprained right wrist" /></div>
+          <div class="field-row">
+            <div class="field-group"><label>Date</label><input type="date" id="injury-date" /></div>
+            <div class="field-group"><label>Status</label>
+              <select id="injury-status">
+                <option value="active">Active / Healing</option>
+                <option value="recovered">Recovered</option>
+                <option value="chronic">Chronic</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-group"><label>Notes</label><textarea id="injury-notes" rows="3" placeholder="Details, treatment, restrictions..."></textarea></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" id="btn-save-injury">SAVE INJURY</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Session Modal -->
+    <div id="modal-session" class="modal">
+      <div class="modal-box">
+        <div class="modal-header"><h3>LOG SESSION</h3><button class="modal-close" data-modal="modal-session">✕</button></div>
+        <div class="modal-body">
+          <div class="field-group"><label>Track Name</label><input type="text" id="session-track" placeholder="e.g. Milestone MX" /></div>
+          <div class="field-row">
+            <div class="field-group"><label>Date</label><input type="date" id="session-date" /></div>
+            <div class="field-group"><label>Hours Ridden</label><input type="number" id="session-hours" placeholder="2.5" step="0.5" min="0.5" max="24" /></div>
+          </div>
+          <div class="field-row">
+            <div class="field-group"><label>Conditions</label>
+              <select id="session-conditions">
+                <option>Dry / Hard Pack</option><option>Dry / Loose</option><option>Tacky / Perfect</option>
+                <option>Muddy / Wet</option><option>Rutted</option><option>Sandy</option><option>Rocky</option>
+              </select>
+            </div>
+            <div class="field-group"><label>Session Type</label>
+              <select id="session-type">
+                <option>Practice</option><option>Race</option><option>Enduro</option><option>Trail</option><option>Training</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-group"><label>Notes</label><textarea id="session-notes" rows="3" placeholder="How was the session? Crashes, PBs, things to work on..."></textarea></div>
+          <div class="field-group"><label>Feeling (1-10)</label>
+            <div class="feeling-row">
+              <input type="range" id="session-feeling" min="1" max="10" value="7" />
+              <span id="feeling-display">7</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" id="btn-save-session">SAVE SESSION</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- New Suspension Preset Modal -->
+    <div id="modal-preset" class="modal">
+      <div class="modal-box modal-small">
+        <div class="modal-header"><h3>NEW PRESET</h3><button class="modal-close" data-modal="modal-preset">✕</button></div>
+        <div class="modal-body">
+          <div class="field-group"><label>Preset Name</label><input type="text" id="preset-name" placeholder="e.g. Hard Pack Race" /></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" id="btn-confirm-preset">CREATE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+  </div>
+
+  <script src="js/github.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
