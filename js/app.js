@@ -35,6 +35,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadAllData();
     showMain();
   } else {
+    // Pre-fill setup form if partial config exists
+    const stored = localStorage.getItem('moto_gh_config');
+    if (stored) {
+      try {
+        const cfg = JSON.parse(stored);
+        if (cfg.username) setVal('gh-username', cfg.username);
+        if (cfg.repo) setVal('gh-repo', cfg.repo);
+        if (cfg.token && cfg.token !== '__DEMO__') setVal('gh-token', cfg.token);
+      } catch(e) {}
+    }
     showSetup();
   }
   bindEvents();
@@ -116,9 +126,13 @@ function bindEvents() {
 
   document.getElementById('btn-sync').addEventListener('click', syncAll);
 
-  // Profile
-  document.getElementById('btn-edit-profile').addEventListener('click', () => openModal('modal-profile', populateProfileModal));
-  document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
+  // Profile — inline fields with auto-save on blur
+  document.getElementById('btn-save-profile-inline').addEventListener('click', saveProfileInline);
+  const profileFields = ['edit-name','edit-class','edit-make','edit-model','edit-year','edit-engine','edit-tire-front','edit-tire-rear','edit-psi-front','edit-psi-rear','edit-setup-notes'];
+  profileFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('blur', saveProfileInline);
+  });
   document.getElementById('btn-add-injury').addEventListener('click', () => openModal('modal-injury'));
   document.getElementById('btn-save-injury').addEventListener('click', saveInjury);
 
@@ -239,18 +253,35 @@ function renderAll() {
 // ---- PROFILE ----
 function renderProfile() {
   const p = State.profile;
-  setText('display-name', p.name || 'YOUR NAME');
-  setText('display-class', p.class || '—');
-  setText('display-make', p.make || '—');
-  setText('display-model', p.model || '—');
-  setText('display-year', p.year || '—');
-  setText('display-engine', p.engine || '—');
-  setText('display-tire-front', p.tireFront || '—');
-  setText('display-tire-rear', p.tireRear || '—');
-  setText('display-psi-front', p.psiFront ? `${p.psiFront} psi` : '—');
-  setText('display-psi-rear', p.psiRear ? `${p.psiRear} psi` : '—');
-  setText('display-setup-notes', p.setupNotes || 'No notes added yet.');
+  // Populate inline fields directly — no modal needed
+  setVal('edit-name', p.name);
+  setVal('edit-class', p.class || 'Amateur');
+  setVal('edit-make', p.make);
+  setVal('edit-model', p.model);
+  setVal('edit-year', p.year);
+  setVal('edit-engine', p.engine);
+  setVal('edit-tire-front', p.tireFront);
+  setVal('edit-tire-rear', p.tireRear);
+  setVal('edit-psi-front', p.psiFront);
+  setVal('edit-psi-rear', p.psiRear);
+  setVal('edit-setup-notes', p.setupNotes);
   renderInjuries();
+}
+
+function saveProfileInline() {
+  State.profile.name = getVal('edit-name');
+  State.profile.class = getVal('edit-class');
+  State.profile.make = getVal('edit-make');
+  State.profile.model = getVal('edit-model');
+  State.profile.year = getVal('edit-year');
+  State.profile.engine = getVal('edit-engine');
+  State.profile.tireFront = getVal('edit-tire-front');
+  State.profile.tireRear = getVal('edit-tire-rear');
+  State.profile.psiFront = getVal('edit-psi-front');
+  State.profile.psiRear = getVal('edit-psi-rear');
+  State.profile.setupNotes = getVal('edit-setup-notes');
+  saveLocal();
+  toast('Profile saved ✓', 'success');
 }
 
 function renderInjuries() {
@@ -269,34 +300,6 @@ function renderInjuries() {
       <div class="injury-badge ${inj.status}">${inj.status}</div>
     </div>
   `).join('');
-}
-
-function populateProfileModal() {
-  const p = State.profile;
-  setVal('edit-name', p.name); setVal('edit-class', p.class);
-  setVal('edit-make', p.make); setVal('edit-model', p.model);
-  setVal('edit-year', p.year); setVal('edit-engine', p.engine);
-  setVal('edit-tire-front', p.tireFront); setVal('edit-tire-rear', p.tireRear);
-  setVal('edit-psi-front', p.psiFront); setVal('edit-psi-rear', p.psiRear);
-  setVal('edit-setup-notes', p.setupNotes);
-}
-
-function saveProfile() {
-  State.profile.name = getVal('edit-name');
-  State.profile.class = getVal('edit-class');
-  State.profile.make = getVal('edit-make');
-  State.profile.model = getVal('edit-model');
-  State.profile.year = getVal('edit-year');
-  State.profile.engine = getVal('edit-engine');
-  State.profile.tireFront = getVal('edit-tire-front');
-  State.profile.tireRear = getVal('edit-tire-rear');
-  State.profile.psiFront = getVal('edit-psi-front');
-  State.profile.psiRear = getVal('edit-psi-rear');
-  State.profile.setupNotes = getVal('edit-setup-notes');
-  closeModal('modal-profile');
-  renderProfile();
-  saveLocal();
-  toast('Profile saved', 'success');
 }
 
 function saveInjury() {
