@@ -1,5 +1,5 @@
 // =========================================
-// MotoTracker — Main App Logic
+// MotoTracker — Main App Logic + AI Coach
 // =========================================
 
 // ---- STATE ----
@@ -9,9 +9,9 @@ const State = {
     make: '', model: '', year: '', engine: '',
     tireFront: '', tireRear: '', psiFront: '', psiRear: '',
     setupNotes: '',
-    injuries: [], // [{id, desc, date, status, notes}]
+    injuries: [],
   },
-  sessions: [], // [{id, track, date, hours, conditions, type, notes, feeling}]
+  sessions: [],
   suspension: {
     activePreset: 'Default',
     presets: {
@@ -26,6 +26,7 @@ const State = {
 
 let calendarDate = new Date();
 let isSyncing = false;
+let coachHistory = []; // conversation history for AI coach
 
 // ---- INIT ----
 document.addEventListener('DOMContentLoaded', async () => {
@@ -70,7 +71,6 @@ async function loadAllData() {
     if (suspension) State.suspension = suspension;
   } catch (e) {
     console.warn('Load error:', e.message);
-    // Use defaults
   }
 }
 
@@ -91,7 +91,6 @@ async function syncAll() {
     toast('Synced to GitHub ✓', 'success');
   } catch (e) {
     toast('Sync failed: ' + e.message, 'error');
-    console.error(e);
   } finally {
     isSyncing = false;
     btn.classList.remove('syncing');
@@ -108,16 +107,13 @@ function saveLocal() {
 
 // ---- EVENTS ----
 function bindEvents() {
-  // Setup screen
   document.getElementById('btn-connect').addEventListener('click', handleConnect);
   document.getElementById('btn-demo').addEventListener('click', handleDemo);
 
-  // Nav tabs
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
-  // Sync button
   document.getElementById('btn-sync').addEventListener('click', syncAll);
 
   // Profile
@@ -129,8 +125,6 @@ function bindEvents() {
   // Sessions
   document.getElementById('btn-add-session').addEventListener('click', () => openModal('modal-session'));
   document.getElementById('btn-save-session').addEventListener('click', saveSession);
-
-  // Feeling slider
   const feelSlider = document.getElementById('session-feeling');
   feelSlider.addEventListener('input', () => {
     document.getElementById('feeling-display').textContent = feelSlider.value;
@@ -143,7 +137,6 @@ function bindEvents() {
   document.getElementById('btn-delete-preset').addEventListener('click', deletePreset);
   document.getElementById('susp-preset-select').addEventListener('change', loadPreset);
 
-  // Click controls (suspension +/-)
   document.querySelectorAll('.click-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const fieldId = btn.dataset.field;
@@ -162,6 +155,30 @@ function bindEvents() {
   });
   document.querySelectorAll('.modal').forEach(modal => {
     modal.addEventListener('click', e => { if (e.target === modal) closeModal(modal.id); });
+  });
+
+  // ---- AI COACH EVENTS ----
+  document.getElementById('btn-susp-advice').addEventListener('click', () => {
+    switchTab('coach');
+    triggerCoachTopic('suspension');
+  });
+
+  document.getElementById('btn-injury-advice').addEventListener('click', () => {
+    switchTab('coach');
+    triggerCoachTopic('injury');
+  });
+
+  document.querySelectorAll('.coach-quick-btn').forEach(btn => {
+    btn.addEventListener('click', () => triggerCoachTopic(btn.dataset.type));
+  });
+
+  document.getElementById('btn-coach-send').addEventListener('click', sendCoachMessage);
+
+  document.getElementById('coach-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendCoachMessage();
+    }
   });
 }
 
@@ -243,7 +260,7 @@ function renderInjuries() {
     list.innerHTML = '<div class="empty-state-small">No injuries logged.</div>';
     return;
   }
-  list.innerHTML = injuries.map((inj, i) => `
+  list.innerHTML = injuries.map(inj => `
     <div class="injury-item ${inj.status}">
       <div class="injury-info">
         <div class="injury-desc">${esc(inj.desc)}</div>
@@ -256,16 +273,11 @@ function renderInjuries() {
 
 function populateProfileModal() {
   const p = State.profile;
-  setVal('edit-name', p.name);
-  setVal('edit-class', p.class);
-  setVal('edit-make', p.make);
-  setVal('edit-model', p.model);
-  setVal('edit-year', p.year);
-  setVal('edit-engine', p.engine);
-  setVal('edit-tire-front', p.tireFront);
-  setVal('edit-tire-rear', p.tireRear);
-  setVal('edit-psi-front', p.psiFront);
-  setVal('edit-psi-rear', p.psiRear);
+  setVal('edit-name', p.name); setVal('edit-class', p.class);
+  setVal('edit-make', p.make); setVal('edit-model', p.model);
+  setVal('edit-year', p.year); setVal('edit-engine', p.engine);
+  setVal('edit-tire-front', p.tireFront); setVal('edit-tire-rear', p.tireRear);
+  setVal('edit-psi-front', p.psiFront); setVal('edit-psi-rear', p.psiRear);
   setVal('edit-setup-notes', p.setupNotes);
 }
 
@@ -292,21 +304,19 @@ function saveInjury() {
   if (!desc) { toast('Please enter an injury description', 'error'); return; }
   if (!State.profile.injuries) State.profile.injuries = [];
   State.profile.injuries.unshift({
-    id: Date.now(),
-    desc,
+    id: Date.now(), desc,
     date: getVal('injury-date'),
     status: getVal('injury-status'),
     notes: getVal('injury-notes'),
   });
   closeModal('modal-injury');
-  // Reset form
   setVal('injury-desc', ''); setVal('injury-notes', '');
   renderInjuries();
   saveLocal();
   toast('Injury logged', 'success');
 }
 
-// ---- SESSIONS / TRACKS ----
+// ---- SESSIONS ----
 function saveSession() {
   const track = getVal('session-track');
   if (!track) { toast('Please enter a track name', 'error'); return; }
@@ -314,8 +324,7 @@ function saveSession() {
   if (!hours || hours <= 0) { toast('Please enter valid hours', 'error'); return; }
 
   State.sessions.unshift({
-    id: Date.now(),
-    track,
+    id: Date.now(), track,
     date: getVal('session-date'),
     hours,
     conditions: getVal('session-conditions'),
@@ -342,7 +351,7 @@ function renderSessions() {
     list.innerHTML = '<div class="empty-state">No sessions logged yet.<br>Tap <strong>+ SESSION</strong> to add your first ride.</div>';
     return;
   }
-  list.innerHTML = State.sessions.map(s => {
+  list.innerHTML = State.sessions.map((s, idx) => {
     const d = new Date(s.date + 'T12:00:00');
     const day = d.getDate();
     const month = d.toLocaleString('default', { month: 'short' }).toUpperCase();
@@ -363,13 +372,21 @@ function renderSessions() {
             <span class="tag">${esc(s.type)}</span>
           </div>
           ${s.notes ? `<div class="session-notes-text">${esc(s.notes)}</div>` : ''}
-          <div class="session-feeling">
-            <div class="feeling-dots">${dots}</div>
-          </div>
+          <div class="session-feeling"><div class="feeling-dots">${dots}</div></div>
+          <button class="session-ai-btn" data-idx="${idx}">⚡ AI ANALYSIS</button>
         </div>
       </div>
     `;
   }).join('');
+
+  // Bind session AI buttons
+  document.querySelectorAll('.session-ai-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const session = State.sessions[parseInt(btn.dataset.idx)];
+      switchTab('coach');
+      triggerSessionAnalysis(session);
+    });
+  });
 }
 
 // ---- CALENDAR ----
@@ -379,7 +396,6 @@ function renderCalendar() {
   const month = calendarDate.getMonth();
   const monthName = calendarDate.toLocaleString('default', { month: 'long' }).toUpperCase();
 
-  // Sessions this month keyed by day
   const sessionDays = new Set(
     State.sessions
       .filter(s => {
@@ -393,7 +409,6 @@ function renderCalendar() {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const daysInPrev = new Date(year, month, 0).getDate();
-
   const dayLabels = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
 
   let html = `
@@ -405,34 +420,21 @@ function renderCalendar() {
     <div class="cal-grid">
       ${dayLabels.map(d => `<div class="cal-day-label">${d}</div>`).join('')}
   `;
-
-  // Prev month overflow
-  for (let i = 0; i < firstDay; i++) {
+  for (let i = 0; i < firstDay; i++)
     html += `<div class="cal-day other-month">${daysInPrev - firstDay + i + 1}</div>`;
-  }
-  // This month
   for (let d = 1; d <= daysInMonth; d++) {
     const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
     const hasSession = sessionDays.has(d);
     html += `<div class="cal-day${isToday ? ' today' : ''}${hasSession ? ' has-session' : ''}">${d}</div>`;
   }
-  // Next month fill
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
-  for (let d = 1; d <= totalCells - firstDay - daysInMonth; d++) {
+  for (let d = 1; d <= totalCells - firstDay - daysInMonth; d++)
     html += `<div class="cal-day other-month">${d}</div>`;
-  }
-
   html += '</div>';
   container.innerHTML = html;
 
-  document.getElementById('cal-prev').addEventListener('click', () => {
-    calendarDate = new Date(year, month - 1, 1);
-    renderCalendar();
-  });
-  document.getElementById('cal-next').addEventListener('click', () => {
-    calendarDate = new Date(year, month + 1, 1);
-    renderCalendar();
-  });
+  document.getElementById('cal-prev').addEventListener('click', () => { calendarDate = new Date(year, month - 1, 1); renderCalendar(); });
+  document.getElementById('cal-next').addEventListener('click', () => { calendarDate = new Date(year, month + 1, 1); renderCalendar(); });
 }
 
 // ---- HOURS ----
@@ -440,14 +442,10 @@ function renderHours() {
   const sessions = State.sessions;
   const total = sessions.reduce((s, x) => s + x.hours, 0);
   const now = new Date();
-
-  // This week (Mon-Sun)
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1));
   weekStart.setHours(0,0,0,0);
   const weekHours = sessions.filter(s => new Date(s.date + 'T12:00:00') >= weekStart).reduce((s,x) => s + x.hours, 0);
-
-  // This month
   const monthHours = sessions.filter(s => {
     const d = new Date(s.date + 'T12:00:00');
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -458,7 +456,6 @@ function renderHours() {
   setText('stat-month-hours', monthHours % 1 === 0 ? monthHours : monthHours.toFixed(1));
   setText('stat-sessions', sessions.length);
 
-  // Monthly bar chart (last 6 months)
   const chart = document.getElementById('hours-chart');
   const months = [];
   for (let i = 5; i >= 0; i--) {
@@ -472,34 +469,27 @@ function renderHours() {
   const maxHrs = Math.max(...months.map(m => m.hrs), 1);
   chart.innerHTML = months.map(m => {
     const pct = (m.hrs / maxHrs) * 100;
-    return `<div class="bar-item">
-      <div class="bar-fill" style="height:${Math.max(pct, m.hrs > 0 ? 4 : 0)}%"></div>
-      <div class="bar-label">${m.label}</div>
-    </div>`;
+    return `<div class="bar-item"><div class="bar-fill" style="height:${Math.max(pct, m.hrs > 0 ? 4 : 0)}%"></div><div class="bar-label">${m.label}</div></div>`;
   }).join('');
 
-  // Recent sessions
   const recent = document.getElementById('recent-sessions-list');
   const last5 = sessions.slice(0, 5);
-  if (last5.length === 0) {
-    recent.innerHTML = '<div class="empty-state-small">No sessions yet.</div>';
-  } else {
-    recent.innerHTML = last5.map(s => `
-      <div class="recent-item">
-        <div class="recent-item-left">
-          <div class="recent-track">${esc(s.track)}</div>
-          <div class="recent-date">${formatDate(s.date)} · ${esc(s.conditions)}</div>
+  recent.innerHTML = last5.length === 0
+    ? '<div class="empty-state-small">No sessions yet.</div>'
+    : last5.map(s => `
+        <div class="recent-item">
+          <div class="recent-item-left">
+            <div class="recent-track">${esc(s.track)}</div>
+            <div class="recent-date">${formatDate(s.date)} · ${esc(s.conditions)}</div>
+          </div>
+          <div class="recent-hours">${s.hours}h</div>
         </div>
-        <div class="recent-hours">${s.hours}h</div>
-      </div>
-    `).join('');
-  }
+      `).join('');
 }
 
 // ---- SUSPENSION ----
 function renderSuspension() {
   const susp = State.suspension;
-  // Populate preset dropdown
   const sel = document.getElementById('susp-preset-select');
   const current = sel.value || susp.activePreset || 'Default';
   sel.innerHTML = Object.keys(susp.presets).map(name =>
@@ -509,8 +499,7 @@ function renderSuspension() {
 }
 
 function loadPreset() {
-  const sel = document.getElementById('susp-preset-select');
-  const name = sel.value;
+  const name = document.getElementById('susp-preset-select').value;
   const preset = State.suspension.presets[name];
   if (!preset) return;
   State.suspension.activePreset = name;
@@ -528,21 +517,15 @@ function loadPreset() {
 }
 
 function saveSuspension() {
-  const sel = document.getElementById('susp-preset-select');
-  const name = sel.value;
+  const name = document.getElementById('susp-preset-select').value;
   if (!name) return;
   State.suspension.presets[name] = {
-    forkComp: parseInt(getVal('fork-comp')),
-    forkReb: parseInt(getVal('fork-reb')),
-    forkSpring: getVal('fork-spring'),
-    forkOil: getVal('fork-oil'),
+    forkComp: parseInt(getVal('fork-comp')), forkReb: parseInt(getVal('fork-reb')),
+    forkSpring: getVal('fork-spring'), forkOil: getVal('fork-oil'),
     forkSag: parseInt(getVal('fork-sag')),
-    shockHiComp: parseInt(getVal('shock-hicomp')),
-    shockLoComp: parseInt(getVal('shock-locomp')),
-    shockReb: parseInt(getVal('shock-reb')),
-    shockSpring: getVal('shock-spring'),
-    shockSag: parseInt(getVal('shock-sag')),
-    notes: getVal('susp-notes'),
+    shockHiComp: parseInt(getVal('shock-hicomp')), shockLoComp: parseInt(getVal('shock-locomp')),
+    shockReb: parseInt(getVal('shock-reb')), shockSpring: getVal('shock-spring'),
+    shockSag: parseInt(getVal('shock-sag')), notes: getVal('susp-notes'),
   };
   saveLocal();
   toast(`"${name}" setup saved`, 'success');
@@ -552,27 +535,241 @@ function createPreset() {
   const name = getVal('preset-name').trim();
   if (!name) { toast('Enter a preset name', 'error'); return; }
   if (State.suspension.presets[name]) { toast('Preset already exists', 'error'); return; }
-  // Copy current values as starting point
   saveSuspension();
   State.suspension.presets[name] = { ...State.suspension.presets[document.getElementById('susp-preset-select').value] };
   closeModal('modal-preset');
   setVal('preset-name', '');
   State.suspension.activePreset = name;
   renderSuspension();
-  // Select new preset
   document.getElementById('susp-preset-select').value = name;
   toast(`Preset "${name}" created`, 'success');
 }
 
 function deletePreset() {
-  const sel = document.getElementById('susp-preset-select');
-  const name = sel.value;
+  const name = document.getElementById('susp-preset-select').value;
   if (name === 'Default') { toast("Can't delete Default preset", 'error'); return; }
   if (!confirm(`Delete preset "${name}"?`)) return;
   delete State.suspension.presets[name];
   State.suspension.activePreset = 'Default';
   renderSuspension();
   toast(`Preset "${name}" deleted`, 'success');
+}
+
+// =========================================
+// AI COACH
+// =========================================
+
+function buildRiderContext() {
+  const p = State.profile;
+  const susp = State.suspension;
+  const activePreset = susp.presets[susp.activePreset] || {};
+  const recentSessions = State.sessions.slice(0, 5);
+  const activeInjuries = (p.injuries || []).filter(i => i.status === 'active' || i.status === 'chronic');
+
+  return `
+RIDER PROFILE:
+- Name: ${p.name || 'Unknown'}, Class: ${p.class || 'Unknown'}
+- Bike: ${p.year || '?'} ${p.make || '?'} ${p.model || '?'} (${p.engine || '?'})
+- Tires: Front ${p.tireFront || 'unknown'} @ ${p.psiFront || '?'} psi, Rear ${p.tireRear || 'unknown'} @ ${p.psiRear || '?'} psi
+- Setup notes: ${p.setupNotes || 'None'}
+
+CURRENT SUSPENSION PRESET (${susp.activePreset}):
+- Forks: Compression ${activePreset.forkComp ?? '?'} clicks, Rebound ${activePreset.forkReb ?? '?'} clicks, Spring ${activePreset.forkSpring || '?'} N/mm, Oil level ${activePreset.forkOil || '?'} mm, Sag ${activePreset.forkSag ?? '?'} mm
+- Shock: Hi-comp ${activePreset.shockHiComp ?? '?'} clicks, Lo-comp ${activePreset.shockLoComp ?? '?'} clicks, Rebound ${activePreset.shockReb ?? '?'} clicks, Spring ${activePreset.shockSpring || '?'} N/mm, Race sag ${activePreset.shockSag ?? '?'} mm
+- Notes: ${activePreset.notes || 'None'}
+- All presets: ${Object.keys(susp.presets).join(', ')}
+
+RECENT SESSIONS (last 5):
+${recentSessions.length === 0 ? 'No sessions logged yet.' : recentSessions.map(s =>
+  `- ${s.date}: ${s.track}, ${s.hours}h, ${s.conditions}, ${s.type}, Feel: ${s.feeling}/10${s.notes ? ', Notes: ' + s.notes : ''}`
+).join('\n')}
+
+ACTIVE/CHRONIC INJURIES:
+${activeInjuries.length === 0 ? 'None' : activeInjuries.map(i =>
+  `- ${i.desc} (${i.status}) since ${i.date}${i.notes ? ': ' + i.notes : ''}`
+).join('\n')}
+
+Total sessions: ${State.sessions.length}, Total hours: ${State.sessions.reduce((s,x) => s+x.hours, 0).toFixed(1)}h
+`.trim();
+}
+
+function getSystemPrompt() {
+  return `You are an expert motocross and dirt bike coach and suspension tuner with 20+ years of experience. You have deep knowledge of MX suspension setup, race craft, injury management, and training protocols.
+
+You have access to this rider's complete profile and data:
+
+${buildRiderContext()}
+
+RESPONSE STYLE:
+- Be direct, specific, and actionable — like a real coach talking to a rider
+- Use the rider's actual data (specific click numbers, track names, conditions) in your advice
+- Keep responses concise but thorough — no fluff
+- Structure advice with clear sections when giving multiple recommendations
+- If data is missing, say what info would help you give better advice
+- Use motocross terminology naturally
+- Always consider active injuries when giving training recommendations`;
+}
+
+function getTopicPrompt(type) {
+  const prompts = {
+    suspension: `Analyse my current suspension setup and give me specific tuning recommendations. Look at my click settings, sag measurements, and recent session conditions/feel ratings. Tell me exactly what to adjust and why.`,
+
+    session: `Analyse my recent sessions. Look at my feel ratings, track conditions, hours ridden, and any notes. Identify patterns — what's working, what needs improvement, and what should I focus on next session?`,
+
+    injury: `Based on my active injuries and riding history, give me training recommendations. What should I avoid, what can I do to stay fit while managing my injuries, and what should I prioritise when I'm back on the bike?`,
+
+    compare: `Compare my suspension presets and session data across different track conditions. Which setup is performing best and what tweaks would you suggest for each condition type?`,
+  };
+  return prompts[type] || `Give me coaching advice based on my profile and recent sessions.`;
+}
+
+async function callClaudeAPI(messages) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system: getSystemPrompt(),
+      messages,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || 'API error');
+  return data.content[0].text;
+}
+
+function addChatMessage(role, text) {
+  const chat = document.getElementById('coach-chat');
+
+  // Remove welcome message on first message
+  const welcome = chat.querySelector('.coach-welcome');
+  if (welcome) welcome.remove();
+
+  const msg = document.createElement('div');
+  msg.className = `chat-msg ${role}`;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble';
+
+  if (role === 'assistant') {
+    bubble.innerHTML = formatCoachResponse(text);
+  } else {
+    bubble.textContent = text;
+  }
+
+  msg.appendChild(bubble);
+  chat.appendChild(msg);
+  chat.scrollTop = chat.scrollHeight;
+  return msg;
+}
+
+function formatCoachResponse(text) {
+  // Convert markdown-style formatting to structured HTML
+  let html = text
+    // Bold **text**
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Section headers (lines ending with : or starting with #)
+    .replace(/^#{1,3}\s+(.+)$/gm, '<div class="advice-heading">$1</div>')
+    // Bullet points
+    .replace(/^[-•]\s+(.+)$/gm, '<div class="advice-item"><span class="advice-bullet">›</span><span>$1</span></div>')
+    // Numbered lists
+    .replace(/^\d+\.\s+(.+)$/gm, '<div class="advice-item"><span class="advice-bullet">›</span><span>$1</span></div>')
+    // Line breaks
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+  return html;
+}
+
+function showTypingIndicator() {
+  const chat = document.getElementById('coach-chat');
+  const msg = document.createElement('div');
+  msg.className = 'chat-msg assistant';
+  msg.id = 'typing-indicator';
+  msg.innerHTML = `<div class="chat-bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  chat.appendChild(msg);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+async function triggerCoachTopic(type) {
+  // Highlight active button
+  document.querySelectorAll('.coach-quick-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.type === type);
+  });
+
+  const userMsg = getTopicPrompt(type);
+  coachHistory.push({ role: 'user', content: userMsg });
+  addChatMessage('user', userMsg);
+
+  const sendBtn = document.getElementById('btn-coach-send');
+  sendBtn.disabled = true;
+  showTypingIndicator();
+
+  try {
+    const reply = await callClaudeAPI(coachHistory);
+    removeTypingIndicator();
+    coachHistory.push({ role: 'assistant', content: reply });
+    addChatMessage('assistant', reply);
+  } catch (e) {
+    removeTypingIndicator();
+    addChatMessage('assistant', `⚠️ Coach unavailable right now. Error: ${e.message}`);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+async function triggerSessionAnalysis(session) {
+  const userMsg = `Analyse this specific session for me: ${session.date} at ${session.track}. Conditions: ${session.conditions}, Type: ${session.type}, Hours: ${session.hours}h, Feel: ${session.feeling}/10.${session.notes ? ' My notes: ' + session.notes : ''} What does this tell you and what should I work on?`;
+
+  coachHistory.push({ role: 'user', content: userMsg });
+  addChatMessage('user', userMsg);
+
+  const sendBtn = document.getElementById('btn-coach-send');
+  sendBtn.disabled = true;
+  showTypingIndicator();
+
+  try {
+    const reply = await callClaudeAPI(coachHistory);
+    removeTypingIndicator();
+    coachHistory.push({ role: 'assistant', content: reply });
+    addChatMessage('assistant', reply);
+  } catch (e) {
+    removeTypingIndicator();
+    addChatMessage('assistant', `⚠️ Coach unavailable: ${e.message}`);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+async function sendCoachMessage() {
+  const input = document.getElementById('coach-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  coachHistory.push({ role: 'user', content: text });
+  addChatMessage('user', text);
+
+  const sendBtn = document.getElementById('btn-coach-send');
+  sendBtn.disabled = true;
+  showTypingIndicator();
+
+  try {
+    const reply = await callClaudeAPI(coachHistory);
+    removeTypingIndicator();
+    coachHistory.push({ role: 'assistant', content: reply });
+    addChatMessage('assistant', reply);
+  } catch (e) {
+    removeTypingIndicator();
+    addChatMessage('assistant', `⚠️ Coach unavailable: ${e.message}`);
+  } finally {
+    sendBtn.disabled = false;
+  }
 }
 
 // ---- TOAST ----
@@ -586,28 +783,17 @@ function toast(msg, type = '') {
 }
 
 // ---- UTILS ----
-function setText(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = val;
-}
-function getVal(id) {
-  const el = document.getElementById(id);
-  return el ? el.value : '';
-}
-function setVal(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.value = val ?? '';
-}
-function esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+function getVal(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+function setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val ?? ''; }
+function esc(str) { return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr + 'T12:00:00');
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// ---- SERVICE WORKER REGISTRATION ----
+// ---- SERVICE WORKER ----
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW:', e));
