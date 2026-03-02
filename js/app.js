@@ -70,6 +70,9 @@ function showMain() {
 
 // ---- DATA LOAD / SAVE ----
 async function loadAllData() {
+  // First load from localStorage cache so UI is instant
+  loadFromLocalCache();
+  // Then try GitHub for latest data
   try {
     const [profile, sessions, suspension] = await Promise.all([
       GitHub.loadData('profile'),
@@ -79,14 +82,36 @@ async function loadAllData() {
     if (profile) State.profile = profile;
     if (sessions) State.sessions = sessions;
     if (suspension) State.suspension = suspension;
+    // Update local cache with GitHub data
+    persistLocalCache();
   } catch (e) {
-    console.warn('Load error:', e.message);
+    console.warn('GitHub load error (using local cache):', e.message);
   }
 }
 
+function loadFromLocalCache() {
+  try {
+    const p = localStorage.getItem('moto_local_profile');
+    const s = localStorage.getItem('moto_local_sessions');
+    const su = localStorage.getItem('moto_local_suspension');
+    if (p) State.profile = JSON.parse(p);
+    if (s) State.sessions = JSON.parse(s);
+    if (su) State.suspension = JSON.parse(su);
+  } catch(e) { console.warn('Cache load error:', e); }
+}
+
+function persistLocalCache() {
+  try {
+    localStorage.setItem('moto_local_profile', JSON.stringify(State.profile));
+    localStorage.setItem('moto_local_sessions', JSON.stringify(State.sessions));
+    localStorage.setItem('moto_local_suspension', JSON.stringify(State.suspension));
+  } catch(e) { console.warn('Cache save error:', e); }
+}
+
 async function syncAll() {
-  if (isSyncing || GitHub.isDemoMode()) {
-    if (GitHub.isDemoMode()) toast('Demo mode — data saved locally', 'success');
+  if (isSyncing) return;
+  if (GitHub.isDemoMode()) {
+    toast('Demo mode — data saved locally', 'success');
     return;
   }
   isSyncing = true;
@@ -98,16 +123,32 @@ async function syncAll() {
       GitHub.saveData('sessions', State.sessions),
       GitHub.saveData('suspension', State.suspension),
     ]);
+    persistLocalCache();
     toast('Synced to GitHub ✓', 'success');
   } catch (e) {
-    toast('Sync failed: ' + e.message, 'error');
+    // Give specific actionable error messages
+    let msg = e.message || 'Unknown error';
+    if (msg.includes('Not Found') || msg.includes('404')) {
+      msg = 'Repo not found. Check repo name in settings.';
+      showReconnectBanner();
+    } else if (msg.includes('401') || msg.includes('Bad credentials')) {
+      msg = 'Token expired. Tap ↻ long-press to reconnect.';
+      showReconnectBanner();
+    } else if (msg.includes('403')) {
+      msg = 'Token missing repo scope. Regenerate token.';
+      showReconnectBanner();
+    }
+    toast('Sync failed: ' + msg, 'error');
+    console.error('Sync error:', e);
   } finally {
     isSyncing = false;
     btn.classList.remove('syncing');
   }
 }
 
+// Always save to localStorage immediately — GitHub sync is separate
 function saveLocal() {
+  persistLocalCache();
   if (GitHub.isDemoMode()) {
     GitHub.saveData('profile', State.profile);
     GitHub.saveData('sessions', State.sessions);
@@ -125,6 +166,24 @@ function bindEvents() {
   });
 
   document.getElementById('btn-sync').addEventListener('click', syncAll);
+
+  // Reconnect button
+  const reconnectBtn = document.getElementById('btn-reconnect');
+  if (reconnectBtn) {
+    reconnectBtn.addEventListener('click', () => {
+      // Pre-fill setup form with existing config
+      const stored = localStorage.getItem('moto_gh_config');
+      if (stored) {
+        try {
+          const cfg = JSON.parse(stored);
+          setVal('gh-username', cfg.username || '');
+          setVal('gh-repo', cfg.repo || '');
+          setVal('gh-token', ''); // Clear token — user must re-enter
+        } catch(e) {}
+      }
+      showSetup();
+    });
+  }
 
   // Profile — inline fields with auto-save on blur
   document.getElementById('btn-save-profile-inline').addEventListener('click', saveProfileInline);
@@ -211,6 +270,7 @@ async function handleConnect() {
     await loadAllData();
     showMain();
     toast('Connected to GitHub ✓', 'success');
+    hideReconnectBanner();
   } catch (e) {
     toast('Connection failed: ' + e.message, 'error');
     btn.textContent = 'CONNECT & START'; btn.disabled = false;
@@ -773,6 +833,16 @@ async function sendCoachMessage() {
   } finally {
     sendBtn.disabled = false;
   }
+}
+
+// ---- RECONNECT BANNER ----
+function showReconnectBanner() {
+  const banner = document.getElementById('reconnect-banner');
+  if (banner) banner.style.display = 'flex';
+}
+function hideReconnectBanner() {
+  const banner = document.getElementById('reconnect-banner');
+  if (banner) banner.style.display = 'none';
 }
 
 // ---- TOAST ----
