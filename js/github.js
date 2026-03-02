@@ -17,7 +17,12 @@ const GitHub = (() => {
 
   function loadConfig() {
     const stored = localStorage.getItem('moto_gh_config');
-    if (stored) { config = JSON.parse(stored); return true; }
+    if (stored) {
+      try {
+        config = JSON.parse(stored);
+        return !!(config.username && config.repo && config.token);
+      } catch(e) { return false; }
+    }
     return false;
   }
 
@@ -29,7 +34,6 @@ const GitHub = (() => {
     return config.token === '__DEMO__';
   }
 
-  // Raw fetch — returns { ok, status, data }
   async function ghFetch(method, path, body = null) {
     if (isDemoMode()) throw new Error('Demo mode');
     const url = `https://api.github.com/repos/${config.username}/${config.repo}/contents/${path}`;
@@ -47,24 +51,22 @@ const GitHub = (() => {
     return { ok: res.ok, status: res.status, data };
   }
 
-  // Read a file — returns { content, sha } or { content: null, sha: null } if not found
   async function readFile(filePath) {
-    const { ok, status, data } = await ghFetch('GET', filePath);
-    if (status === 404 || status === 403) {
-      return { content: null, sha: null };
-    }
-    if (!ok) {
-      throw new Error(data.message || `GitHub read error ${status}`);
-    }
     try {
+      const { ok, status, data } = await ghFetch('GET', filePath);
+      // 404 means file doesn't exist yet — that's fine, return null
+      if (status === 404) return { content: null, sha: null };
+      if (!ok) throw new Error(data.message || `Read error ${status}`);
       const decoded = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
       return { content: JSON.parse(decoded), sha: data.sha };
-    } catch (e) {
-      return { content: null, sha: null };
+    } catch(e) {
+      if (e.message && (e.message.includes('404') || e.message.includes('Not Found'))) {
+        return { content: null, sha: null };
+      }
+      throw e;
     }
   }
 
-  // Write a file — creates or updates
   async function writeFile(filePath, content, sha = null) {
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(content, null, 2))));
     const body = {
@@ -72,26 +74,21 @@ const GitHub = (() => {
       content: encoded,
     };
     if (sha) body.sha = sha;
-
     const { ok, status, data } = await ghFetch('PUT', filePath, body);
-    if (!ok) {
-      throw new Error(data.message || `GitHub write error ${status}`);
-    }
+    if (!ok) throw new Error(data.message || `Write error ${status}`);
     return data;
   }
 
-  // Save data — reads SHA first (needed for updates), then writes
   async function saveData(type, data) {
     if (isDemoMode()) {
       localStorage.setItem(`moto_demo_${type}`, JSON.stringify(data));
       return;
     }
     const filePath = FILES[type];
-    const { sha } = await readFile(filePath); // sha is null for new files — that's fine
+    const { sha } = await readFile(filePath);
     await writeFile(filePath, data, sha);
   }
 
-  // Load data — returns null if file doesn't exist yet
   async function loadData(type) {
     if (isDemoMode()) {
       const stored = localStorage.getItem(`moto_demo_${type}`);
@@ -102,7 +99,6 @@ const GitHub = (() => {
     return content;
   }
 
-  // Test connection to the repo
   async function testConnection() {
     const url = `https://api.github.com/repos/${config.username}/${config.repo}`;
     const res = await fetch(url, {
@@ -110,7 +106,7 @@ const GitHub = (() => {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `Cannot access repo (${res.status}). Check your token has 'repo' scope.`);
+      throw new Error(err.message || `Cannot access repo (${res.status})`);
     }
     return true;
   }
