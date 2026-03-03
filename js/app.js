@@ -142,6 +142,9 @@ function bindEvents() {
 
   document.getElementById('btn-sync').addEventListener('click', syncAll);
 
+  // Sign out
+  document.getElementById('btn-signout').addEventListener('click', handleSignOut);
+
   // Profile inline — auto-save on blur
   document.getElementById('btn-save-profile-inline').addEventListener('click', () => {
     saveLocal();
@@ -225,6 +228,19 @@ function handleDemo() {
   showMain();
   renderAll();
   toast('Demo mode — data saved locally', 'success');
+}
+
+function handleSignOut() {
+  if (!confirm('Sign out and disconnect from GitHub?\n\nYour locally cached data will be kept.')) return;
+  localStorage.removeItem('moto_gh_config');
+  // Pre-fill setup form with last used values so easy to reconnect
+  const username = document.getElementById('gh-username');
+  const repo = document.getElementById('gh-repo');
+  if (username) username.value = 'Tduto';
+  if (repo) repo.value = 'moto-data';
+  document.getElementById('gh-token').value = '';
+  showSetup();
+  toast('Signed out', 'success');
 }
 
 // ---- TABS ----
